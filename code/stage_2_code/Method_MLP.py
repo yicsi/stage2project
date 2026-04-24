@@ -9,6 +9,7 @@ from code.base_class.method import method
 from code.stage_2_code.Evaluate_Accuracy import Evaluate_Accuracy
 import torch
 from torch import nn
+from torch.utils.data import DataLoader, TensorDataset
 import numpy as np
 import matplotlib.pyplot as plt
 import os
@@ -16,20 +17,25 @@ import os
 
 class Method_MLP(method, nn.Module):
     data = None
-    max_epoch = 50
+    max_epoch = 20
     learning_rate = 1e-3
+    batch_size = 256
 
     def __init__(self, mName, mDescription):
         method.__init__(self, mName, mDescription)
         nn.Module.__init__(self)
 
-        self.fc_layer_1 = nn.Linear(784, 256)
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+        self.fc_layer_1 = nn.Linear(784, 512)
         self.activation_func_1 = nn.ReLU()
 
-        self.fc_layer_2 = nn.Linear(256, 128)
+        self.fc_layer_2 = nn.Linear(512, 256)
         self.activation_func_2 = nn.ReLU()
 
-        self.fc_layer_3 = nn.Linear(128, 10)
+        self.fc_layer_3 = nn.Linear(256, 10)
+
+        self.to(self.device)
 
     def forward(self, x):
         h = self.activation_func_1(self.fc_layer_1(x))
@@ -42,35 +48,53 @@ class Method_MLP(method, nn.Module):
         loss_function = nn.CrossEntropyLoss()
         accuracy_evaluator = Evaluate_Accuracy('training evaluator', '')
 
+        X_tensor = torch.FloatTensor(np.array(X))
+        y_true = torch.LongTensor(np.array(y))
+        train_dataset = TensorDataset(X_tensor, y_true)
+        train_loader = DataLoader(train_dataset, batch_size=self.batch_size, shuffle=True)
+
         epoch_list = []
         loss_list = []
         acc_list = []
 
         for epoch in range(self.max_epoch):
-            X_tensor = torch.FloatTensor(np.array(X))
-            y_true = torch.LongTensor(np.array(y))
+            super().train(True)
+            epoch_loss = 0.0
 
-            y_pred = self.forward(X_tensor)
-            train_loss = loss_function(y_pred, y_true)
+            for batch_X, batch_y in train_loader:
+                batch_X = batch_X.to(self.device)
+                batch_y = batch_y.to(self.device)
 
-            optimizer.zero_grad()
-            train_loss.backward()
-            optimizer.step()
+                y_pred = self.forward(batch_X)
+                train_loss = loss_function(y_pred, batch_y)
+
+                optimizer.zero_grad()
+                train_loss.backward()
+                optimizer.step()
+
+                epoch_loss += train_loss.item() * batch_X.size(0)
+
+            super().train(False)
+            with torch.no_grad():
+                full_X = X_tensor.to(self.device)
+                full_pred = self.forward(full_X)
+                pred_labels = full_pred.max(1)[1].cpu()
 
             accuracy_evaluator.data = {
                 'true_y': y_true,
-                'pred_y': y_pred.max(1)[1]
+                'pred_y': pred_labels
             }
             train_acc = accuracy_evaluator.evaluate()
+            avg_epoch_loss = epoch_loss / len(train_dataset)
 
             epoch_list.append(epoch)
-            loss_list.append(train_loss.item())
+            loss_list.append(avg_epoch_loss)
             acc_list.append(train_acc)
 
-            if epoch % 10 == 0:
+            if epoch % 2 == 0:
                 print('Epoch:', epoch,
                       'Accuracy:', train_acc,
-                      'Loss:', train_loss.item())
+                      'Loss:', avg_epoch_loss)
 
         self.save_learning_curves(epoch_list, loss_list, acc_list)
 
@@ -95,8 +119,11 @@ class Method_MLP(method, nn.Module):
         plt.close()
 
     def test(self, X):
-        y_pred = self.forward(torch.FloatTensor(np.array(X)))
-        return y_pred.max(1)[1]
+        super().train(False)
+        with torch.no_grad():
+            X_tensor = torch.FloatTensor(np.array(X)).to(self.device)
+            y_pred = self.forward(X_tensor)
+        return y_pred.max(1)[1].cpu()
 
     def run(self):
         print('method running...')
