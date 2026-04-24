@@ -1,0 +1,16 @@
+.DS_Store
+.idea/
+.venv/
+.venv310/
+.venv311/
+__pycache__/
+*.pyc
+
+# Local outputs
+result/
+
+# Large local datasets that should not be pushed directly to GitHub
+data/train.csv
+
+# Nested Git repository metadata
+script/stage_2_script/.git/
