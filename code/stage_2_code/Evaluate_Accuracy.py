@@ -10,22 +10,19 @@ class Evaluate_Accuracy(evaluate):
     data = None
 
     def evaluate(self):
-        # 取数据
         y_true = self.data['true_y']
         y_pred = self.data['pred_y']
 
-        # 计算指标
         acc = accuracy_score(y_true, y_pred)
-        precision = precision_score(y_true, y_pred, average='weighted')
-        recall = recall_score(y_true, y_pred, average='weighted')
-        f1 = f1_score(y_true, y_pred, average='weighted')
+        precision = precision_score(y_true, y_pred, average='weighted', zero_division=0)
+        recall = recall_score(y_true, y_pred, average='weighted', zero_division=0)
+        f1 = f1_score(y_true, y_pred, average='weighted', zero_division=0)
 
-        # ⭐ 只在最终 testing 阶段打印（避免每个 epoch 都刷屏）
         if self.data.get('final', False):
             print('******** Final Evaluation Metrics ********')
-            print("Accuracy:", acc)
-            print("Precision:", precision)
-            print("Recall:", recall)
-            print("F1-score:", f1)
+            print('Accuracy:', acc)
+            print('Precision:', precision)
+            print('Recall:', recall)
+            print('F1-score:', f1)
 
         return acc

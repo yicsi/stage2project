@@ -32,7 +32,8 @@ class Setting_Train_Test_Split(setting):
         self.result.data = learned_result
         self.result.save()
 
-        self.evaluate.data = learned_result
+        self.evaluate.data = dict(learned_result)
+        self.evaluate.data['final'] = True
 
         return self.evaluate.evaluate(), None
 
