@@ -43,19 +43,39 @@ class Method_MLP(method, nn.Module):
         y_pred = self.fc_layer_3(h)
         return y_pred
 
-    def train(self, X, y):
+    def evaluate_dataset(self, X_tensor, y_true, loss_function, evaluator_name):
+        accuracy_evaluator = Evaluate_Accuracy(evaluator_name, '')
+
+        super().train(False)
+        with torch.no_grad():
+            y_pred = self.forward(X_tensor.to(self.device))
+            loss = loss_function(y_pred, y_true.to(self.device)).item()
+            pred_labels = y_pred.max(1)[1].cpu()
+
+        accuracy_evaluator.data = {
+            'true_y': y_true,
+            'pred_y': pred_labels
+        }
+        acc = accuracy_evaluator.evaluate()
+        return loss, acc
+
+    def train(self, X, y, test_X, test_y):
         optimizer = torch.optim.Adam(self.parameters(), lr=self.learning_rate)
         loss_function = nn.CrossEntropyLoss()
-        accuracy_evaluator = Evaluate_Accuracy('training evaluator', '')
 
-        X_tensor = torch.FloatTensor(np.array(X))
-        y_true = torch.LongTensor(np.array(y))
-        train_dataset = TensorDataset(X_tensor, y_true)
+        train_X_tensor = torch.FloatTensor(np.array(X))
+        train_y_true = torch.LongTensor(np.array(y))
+        test_X_tensor = torch.FloatTensor(np.array(test_X))
+        test_y_true = torch.LongTensor(np.array(test_y))
+
+        train_dataset = TensorDataset(train_X_tensor, train_y_true)
         train_loader = DataLoader(train_dataset, batch_size=self.batch_size, shuffle=True)
 
         epoch_list = []
-        loss_list = []
-        acc_list = []
+        train_loss_list = []
+        train_acc_list = []
+        test_loss_list = []
+        test_acc_list = []
 
         for epoch in range(self.max_epoch):
             super().train(True)
@@ -74,47 +94,53 @@ class Method_MLP(method, nn.Module):
 
                 epoch_loss += train_loss.item() * batch_X.size(0)
 
-            super().train(False)
-            with torch.no_grad():
-                full_X = X_tensor.to(self.device)
-                full_pred = self.forward(full_X)
-                pred_labels = full_pred.max(1)[1].cpu()
-
-            accuracy_evaluator.data = {
-                'true_y': y_true,
-                'pred_y': pred_labels
-            }
-            train_acc = accuracy_evaluator.evaluate()
             avg_epoch_loss = epoch_loss / len(train_dataset)
+            train_eval_loss, train_acc = self.evaluate_dataset(
+                train_X_tensor, train_y_true, loss_function, 'training evaluator'
+            )
+            test_loss, test_acc = self.evaluate_dataset(
+                test_X_tensor, test_y_true, loss_function, 'testing evaluator'
+            )
 
             epoch_list.append(epoch)
-            loss_list.append(avg_epoch_loss)
-            acc_list.append(train_acc)
+            train_loss_list.append(avg_epoch_loss if epoch == 0 else train_eval_loss)
+            train_acc_list.append(train_acc)
+            test_loss_list.append(test_loss)
+            test_acc_list.append(test_acc)
 
-            if epoch % 2 == 0:
-                print('Epoch:', epoch,
-                      'Accuracy:', train_acc,
-                      'Loss:', avg_epoch_loss)
 
-        self.save_learning_curves(epoch_list, loss_list, acc_list)
+            print('Epoch:', epoch,
+                    'Train Accuracy:', train_acc,
+                    'Train Loss:', train_loss_list[-1],
+                    'Test Accuracy:', test_acc,
+                    'Test Loss:', test_loss)
 
-    def save_learning_curves(self, epochs, losses, accs):
+        self.save_learning_curves(epoch_list, train_loss_list, train_acc_list,
+                                  test_loss_list, test_acc_list)
+        print('Final Train Loss:', train_loss_list[-1])
+        print('Final Test Loss:', test_loss_list[-1])
+
+    def save_learning_curves(self, epochs, train_losses, train_accs, test_losses, test_accs):
         save_folder = '../../result/stage_2_result/'
         os.makedirs(save_folder, exist_ok=True)
 
         plt.figure()
-        plt.plot(epochs, losses)
+        plt.plot(epochs, train_losses, label='Train Loss')
+        plt.plot(epochs, test_losses, label='Test Loss')
         plt.xlabel('Epoch')
         plt.ylabel('Loss')
-        plt.title('Training Loss Curve')
+        plt.title('Train vs Test Loss Curve')
+        plt.legend()
         plt.savefig(save_folder + 'training_loss_curve.png')
         plt.close()
 
         plt.figure()
-        plt.plot(epochs, accs)
+        plt.plot(epochs, train_accs, label='Train Accuracy')
+        plt.plot(epochs, test_accs, label='Test Accuracy')
         plt.xlabel('Epoch')
         plt.ylabel('Accuracy')
-        plt.title('Training Accuracy Curve')
+        plt.title('Train vs Test Accuracy Curve')
+        plt.legend()
         plt.savefig(save_folder + 'training_accuracy_curve.png')
         plt.close()
 
@@ -128,7 +154,10 @@ class Method_MLP(method, nn.Module):
     def run(self):
         print('method running...')
         print('--start training...')
-        self.train(self.data['train']['X'], self.data['train']['y'])
+        self.train(
+            self.data['train']['X'], self.data['train']['y'],
+            self.data['test']['X'], self.data['test']['y']
+        )
         print('--start testing...')
         pred_y = self.test(self.data['test']['X'])
         return {'pred_y': pred_y, 'true_y': self.data['test']['y']}

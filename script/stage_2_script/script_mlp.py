@@ -9,8 +9,7 @@ import torch
 # ---- Multi-Layer Perceptron script ----
 if 1:
     # ---- parameter section -------------------------------
-    np.random.seed(2)
-    torch.manual_seed(2)
+
     # ------------------------------------------------------
 
     # ---- object initialization section -------------------
