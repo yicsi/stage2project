@@ -1,5 +1,5 @@
 '''
-Concrete MethodModule class for CNN on ORL
+Concrete MethodModule class for CNN on MNIST
 '''
 
 from code.base_class.method import method
@@ -14,9 +14,9 @@ import os
 
 class Method_CNN(method, nn.Module):
     data = None
-    max_epoch = 15
+    max_epoch = 10
     learning_rate = 1e-3
-    batch_size = 16
+    batch_size = 64
 
     def __init__(self, mName, mDescription):
         method.__init__(self, mName, mDescription)
@@ -24,7 +24,7 @@ class Method_CNN(method, nn.Module):
 
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-        # CNN for ORL: input shape = 1 x 112 x 92
+        # CNN for MNIST: input shape = 1 x 28 x 28
         self.conv1 = nn.Conv2d(1, 32, kernel_size=3, padding=1)
         self.relu1 = nn.ReLU()
         self.pool1 = nn.MaxPool2d(2, 2)
@@ -33,17 +33,15 @@ class Method_CNN(method, nn.Module):
         self.relu2 = nn.ReLU()
         self.pool2 = nn.MaxPool2d(2, 2)
 
-        # After two pooling layers:
-        # 112 -> 56 -> 28
-        # 92 -> 46 -> 23
-        self.fc1 = nn.Linear(64 * 28 * 23, 128)
+        # After two pooling layers: 28 -> 14 -> 7
+        self.fc1 = nn.Linear(64 * 7 * 7, 128)
         self.relu3 = nn.ReLU()
-        self.fc2 = nn.Linear(128, 40)
+        self.fc2 = nn.Linear(128, 10)
 
         self.to(self.device)
 
     def forward(self, x):
-        x = x.reshape(-1, 1, 112, 92)
+        x = x.reshape(-1, 1, 28, 28)
 
         x = self.pool1(self.relu1(self.conv1(x)))
         x = self.pool2(self.relu2(self.conv2(x)))
@@ -164,9 +162,9 @@ class Method_CNN(method, nn.Module):
         plt.plot(epochs, test_losses, label='Test Loss')
         plt.xlabel('Epoch')
         plt.ylabel('Loss')
-        plt.title('ORL CNN Train vs Test Loss Curve')
+        plt.title('MNIST CNN Train vs Test Loss Curve')
         plt.legend()
-        plt.savefig(save_folder + 'orl_cnn_training_loss_curve.png')
+        plt.savefig(save_folder + 'mnist_cnn_training_loss_curve.png')
         plt.close()
 
         plt.figure()
@@ -174,9 +172,9 @@ class Method_CNN(method, nn.Module):
         plt.plot(epochs, test_accs, label='Test Accuracy')
         plt.xlabel('Epoch')
         plt.ylabel('Accuracy')
-        plt.title('ORL CNN Train vs Test Accuracy Curve')
+        plt.title('MNIST CNN Train vs Test Accuracy Curve')
         plt.legend()
-        plt.savefig(save_folder + 'orl_cnn_training_accuracy_curve.png')
+        plt.savefig(save_folder + 'mnist_cnn_training_accuracy_curve.png')
         plt.close()
 
     def test(self, X):
